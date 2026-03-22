@@ -135,4 +135,4 @@ Open your browser and go to `http://localhost:5000`
 
 ---
 
-Built with ❤️ using Flask + Firebase
+Built with 💚 using Flask + Firebase
