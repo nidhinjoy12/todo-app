@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Doable</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body class="auth-body">
+
+<!-- 🌙 Theme Toggle -->
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
+
+<div class="auth-card">
+    <span class="auth-logo">Doable.</span>
+
+    <h2>Welcome back</h2>
+    <p class="subtitle">Sign in to your account to continue</p>
+
+    <!-- Error message if login fails -->
+    {% if error %}
+    <div class="error-msg">{{ error }}</div>
+    {% endif %}
+
+    <!-- Normal Login Form -->
+    <form method="POST">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" placeholder="your username" required>
+        </div>
+
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" placeholder="••••••••" required>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Sign in</button>
+    </form>
+
+    <div class="divider">or</div>
+
+    <!-- Google Login -->
+    <button class="btn btn-google" onclick="googleLogin()">
+        <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" alt="Google">
+        Continue with Google
+    </button>
+
+    <div class="auth-footer">
+        Don't have an account? <a href="/signup">Sign up</a>
+    </div>
+</div>
+
+<!-- Firebase SDK -->
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+<script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+<script>
+    // ── Theme Toggle ──────────────────────────
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.querySelector('.theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+        localStorage.setItem('theme', theme);
+    }
+
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+    }
+
+    // Apply saved theme on load
+    const savedTheme = localStorage.getItem('theme') || 'light';
+    applyTheme(savedTheme);
+
+    // ── Firebase ──────────────────────────────
+    const firebaseConfig = {
+        apiKey: "REPLACE_WITH_YOUR_KEY",
+        authDomain: "todo-app-auth-21497.firebaseapp.com",
+        projectId: "todo-app-auth-21497",
+        storageBucket: "todo-app-auth-21497.firebasestorage.app",
+        messagingSenderId: "892179618417",
+        appId: "1:892179618417:web:1a2aa50c6f61f1425359d0",
+        measurementId: "G-FCX6YGBM1H"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+
+    async function googleLogin() {
+        const provider = new firebase.auth.GoogleAuthProvider();
+        try {
+            const result = await firebase.auth().signInWithPopup(provider);
+            const idToken = await result.user.getIdToken();
+
+            const response = await fetch('/firebase-login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ idToken: idToken })
+            });
+
+            const data = await response.json();
+            if (data.status === "success") {
+                window.location.href = "/";
+            } else {
+                alert("Login failed. Please try again.");
+            }
+        } catch (error) {
+            console.error("Google login error:", error);
+            alert("Google login failed: " + error.message);
+        }
+    }
+</script>
+
+</body>
+</html>

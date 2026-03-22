@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard — Doable</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <style>
+        /* ── Date badge styles ── */
+        .task-date {
+            font-size: 12px;
+            font-weight: 500;
+            padding: 3px 10px;
+            border-radius: 100px;
+            white-space: nowrap;
+            flex-shrink: 0;
+        }
+        .date-today {
+            background: rgba(232,87,42,0.12);
+            color: var(--accent);
+            border: 1px solid rgba(232,87,42,0.3);
+        }
+        .date-overdue {
+            background: rgba(220,53,69,0.12);
+            color: #dc3545;
+            border: 1px solid rgba(220,53,69,0.3);
+            animation: pulse 1.5s infinite;
+        }
+        .date-upcoming {
+            background: rgba(45,122,79,0.1);
+            color: var(--success);
+            border: 1px solid rgba(45,122,79,0.25);
+        }
+        .date-none {
+            background: var(--bg);
+            color: var(--muted);
+            border: 1px solid var(--border);
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* ── Date picker in form ── */
+        .add-task-date {
+            padding: 8px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            background: var(--bg);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            color: var(--text);
+            cursor: pointer;
+            outline: none;
+            transition: border-color 0.2s;
+            flex-shrink: 0;
+        }
+        .add-task-date:focus {
+            border-color: var(--accent);
+        }
+
+        /* ── Date filter bar ── */
+        .date-filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        .date-filter-bar label {
+            font-size: 13px;
+            color: var(--text-light);
+            font-weight: 500;
+        }
+        .date-filter-input {
+            padding: 6px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            background: var(--surface);
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            color: var(--text);
+            outline: none;
+            cursor: pointer;
+            transition: border-color 0.2s;
+        }
+        .date-filter-input:focus {
+            border-color: var(--accent);
+        }
+        .btn-clear-filter {
+            padding: 6px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 8px;
+            background: transparent;
+            font-family: 'DM Sans', sans-serif;
+            font-size: 13px;
+            color: var(--text-light);
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-clear-filter:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        /* ── Overdue summary banner ── */
+        .overdue-banner {
+            background: rgba(220,53,69,0.08);
+            border: 1.5px solid rgba(220,53,69,0.25);
+            border-radius: 10px;
+            padding: 12px 18px;
+            margin-bottom: 20px;
+            font-size: 14px;
+            color: #dc3545;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .add-task-form { flex-wrap: wrap; }
+        .add-task-form input[name="task"] { min-width: 160px; }
+    </style>
+</head>
+<body class="dashboard-body">
+
+<!-- 🌙 Theme Toggle -->
+<button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark/light mode">🌙</button>
+
+<!-- Navbar -->
+<nav class="navbar">
+    <a href="/" class="navbar-brand">Doable<span>.</span></a>
+    <a href="/logout" class="btn-logout">Log out</a>
+</nav>
+
+<!-- Main Content -->
+<main class="dashboard-main">
+
+    <div class="dashboard-header">
+        <h1>My Tasks</h1>
+        <p>Stay focused, get things done.</p>
+    </div>
+
+    <!-- Add Task Form -->
+    <!-- ✅ FIX 2: No default date — user chooses freely -->
+    <form class="add-task-form" action="/add" method="POST">
+        <input type="text" name="task" placeholder="Add a new task..." required>
+        <input type="date" name="due_date" class="add-task-date" id="due-date-picker">
+        <button type="submit" class="btn-add">+ Add</button>
+    </form>
+
+    <!-- Overdue Banner -->
+    {% set overdue_count = [] %}
+    {% for task in tasks %}
+        {% if task.due_date and task.due_date < today and task.completed == 0 %}
+            {% set _ = overdue_count.append(1) %}
+        {% endif %}
+    {% endfor %}
+    {% if overdue_count | length > 0 %}
+    <div class="overdue-banner">
+        ⚠️ You have <strong>{{ overdue_count | length }} overdue task{{ 's' if overdue_count | length > 1 }}</strong> — please take care of them!
+    </div>
+    {% endif %}
+
+    <!-- Status Filter Chips -->
+    {% set total = tasks | length %}
+    {% set done = tasks | selectattr('completed', 'equalto', 1) | list | length %}
+    {% set pending = total - done %}
+
+    <div class="task-stats">
+        <button class="stat-chip active" onclick="filterTasks('all', this)">All {{ total }}</button>
+        <button class="stat-chip" onclick="filterTasks('pending', this)">Pending {{ pending }}</button>
+        <button class="stat-chip" onclick="filterTasks('done', this)">Done {{ done }}</button>
+    </div>
+
+    <!-- Date Filter Bar -->
+    <!-- ✅ FIX 1: No default date on filter — shows all tasks on load -->
+    <div class="date-filter-bar">
+        <label>Filter by date:</label>
+        <input type="date" class="date-filter-input" id="date-filter" onchange="filterByDate()">
+        <button class="btn-clear-filter" onclick="clearDateFilter()">Clear</button>
+    </div>
+
+    <!-- Task List -->
+    {% if tasks %}
+    <ul class="task-list" id="task-list">
+        {% for task in tasks %}
+
+        {% if task.due_date %}
+            {% if task.due_date < today and task.completed == 0 %}
+                {% set date_class = "date-overdue" %}
+                {% set date_label = "⚠ Overdue" %}
+            {% elif task.due_date == today %}
+                {% set date_class = "date-today" %}
+                {% set date_label = "Today" %}
+            {% else %}
+                {% set date_class = "date-upcoming" %}
+                {% set date_label = task.due_date %}
+            {% endif %}
+        {% else %}
+            {% set date_class = "date-none" %}
+            {% set date_label = "No date" %}
+        {% endif %}
+
+        <li class="task-item {% if task.completed == 1 %}completed{% endif %}"
+            data-status="{% if task.completed == 1 %}done{% else %}pending{% endif %}"
+            data-due="{{ task.due_date or '' }}">
+
+            <span class="task-dot"></span>
+            <span class="task-text">{{ task.content }}</span>
+            <span class="task-date {{ date_class }}">{{ date_label }}</span>
+
+            <div class="task-actions">
+                {% if task.completed == 0 %}
+                <a href="/complete/{{ task.id }}" class="btn-action btn-complete">✓ Done</a>
+                {% endif %}
+                <a href="/delete/{{ task.id }}" class="btn-action btn-delete">Delete</a>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+
+    <div class="empty-state" id="empty-filtered" style="display:none;">
+        <div class="empty-icon">🎉</div>
+        <p id="empty-filtered-msg">No tasks here!</p>
+    </div>
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-icon">📋</div>
+        <p>No tasks yet — add one above!</p>
+    </div>
+    {% endif %}
+
+</main>
+
+<script>
+    // ── Theme Toggle ──────────────────────────────────────
+    function applyTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        document.querySelector('.theme-toggle').textContent = theme === 'dark' ? '☀️' : '🌙';
+        localStorage.setItem('theme', theme);
+    }
+    function toggleTheme() {
+        const current = document.documentElement.getAttribute('data-theme');
+        applyTheme(current === 'dark' ? 'light' : 'dark');
+    }
+    applyTheme(localStorage.getItem('theme') || 'light');
+
+    const today = "{{ today }}";
+
+    // ✅ FIX 1: No auto-filter on load — all tasks visible by default
+    // ✅ FIX 2: No default date in add form — user picks freely
+    let currentStatusFilter = 'all';
+    let currentDateFilter = '';
+
+    function filterTasks(filter, clickedBtn) {
+        currentStatusFilter = filter;
+        document.querySelectorAll('.stat-chip').forEach(btn => btn.classList.remove('active'));
+        clickedBtn.classList.add('active');
+        applyFilters();
+    }
+
+    function filterByDate() {
+        currentDateFilter = document.getElementById('date-filter').value;
+        applyFilters();
+    }
+
+    function clearDateFilter() {
+        currentDateFilter = '';
+        document.getElementById('date-filter').value = '';
+        applyFilters();
+    }
+
+    function applyFilters() {
+        const items = document.querySelectorAll('.task-item');
+        let visibleCount = 0;
+
+        items.forEach(item => {
+            const status = item.getAttribute('data-status');
+            const due = item.getAttribute('data-due');
+
+            const statusMatch = currentStatusFilter === 'all' || status === currentStatusFilter;
+            const dateMatch = currentDateFilter === '' || due === currentDateFilter;
+
+            if (statusMatch && dateMatch) {
+                item.style.display = 'flex';
+                visibleCount++;
+            } else {
+                item.style.display = 'none';
+            }
+        });
+
+        const emptyFiltered = document.getElementById('empty-filtered');
+        const emptyMsg = document.getElementById('empty-filtered-msg');
+
+        if (visibleCount === 0 && emptyFiltered) {
+            emptyFiltered.style.display = 'block';
+            if (currentDateFilter) {
+                emptyMsg.textContent = `No tasks for ${currentDateFilter === today ? 'today' : currentDateFilter}.`;
+            } else if (currentStatusFilter === 'pending') {
+                emptyMsg.textContent = 'No pending tasks — great job! 🎉';
+            } else if (currentStatusFilter === 'done') {
+                emptyMsg.textContent = 'No completed tasks yet. Keep going!';
+            } else {
+                emptyMsg.textContent = 'No tasks yet!';
+            }
+        } else if (emptyFiltered) {
+            emptyFiltered.style.display = 'none';
+        }
+    }
+</script>
+
+</body>
+</html>
